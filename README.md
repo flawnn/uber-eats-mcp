@@ -22,6 +22,8 @@ UE_CDP=http://localhost:9333 npm run live-run     # one-shot deal hunt: feed + d
 
 One note on the session: Uber's eater binding only stays valid in the live signed-in browser (short-lived session cookies, rotated server-side — fresh headless launches with exported cookies come back anonymous, we tested). So the daemon is the trick that means you never log in again; everything else just attaches to it.
 
+The MCP server starts the daemon itself when nothing answers on `:9333` (`UE_AUTOSTART=0` turns that off). If the session lapses, a call waits up to `UE_REAUTH_WAIT` seconds (default 90) while silent SSO re-attaches it; if that fails, `sessiond` opens one sign-in window — complete it and retry. Offline checks for this logic: `npm run test:reauth`.
+
 Tests run offline against captured fixtures: `npm run test:tools && npm run test:mcp`.
 
 ## TODO
