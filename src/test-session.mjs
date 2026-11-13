@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { waitForAuth } from './lib/session.mjs';
 
-function fakePage({ authedAfter = 0, gotoFails = false } = {}) {
+function fakePage({ authedAfter = 0, gotoFails = false, url = 'about:blank' } = {}) {
   const page = {
     gotos: [],
     probes: 0,
+    url: () => url,
     goto(url) {
       page.gotos.push(url);
       return gotoFails ? Promise.reject(new Error('ERR_ABORTED')) : Promise.resolve();
@@ -28,6 +29,12 @@ test('waitForAuth resolves true once the probe succeeds, loading /feed once', as
 test('waitForAuth resolves false when the budget runs out', async () => {
   const page = fakePage({ authedAfter: Infinity });
   assert.equal(await waitForAuth(page, { budgetMs: 30, pollMs: 5 }), false);
+});
+
+test('waitForAuth never navigates away from an in-progress sign-in', async () => {
+  const page = fakePage({ authedAfter: 2, url: 'https://auth.uber.com/v2/?next_url=https%3A%2F%2Fwww.ubereats.com%2Ffeed' });
+  assert.equal(await waitForAuth(page, { budgetMs: 1000, pollMs: 1 }), true);
+  assert.deepEqual(page.gotos, []);
 });
 
 test('waitForAuth keeps polling when the initial navigation is aborted', async () => {

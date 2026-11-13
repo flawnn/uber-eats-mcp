@@ -37,10 +37,17 @@ export async function probeAuth(page, csrfToken = 'x', attempts = 3) {
   return last;
 }
 
+const onSignInPage = (url) => {
+  try { return new URL(url).hostname === 'auth.uber.com'; } catch { return false; }
+};
+
 // Loads /feed once, then polls until the page is authenticated or the budget runs out.
 // Gives the browser's own silent SSO a chance to re-attach the eater session.
+// A page already on the sign-in form is only polled: reloading it would wipe a sign-in in progress.
 export async function waitForAuth(page, { budgetMs, csrfToken = 'x', pollMs = 5000, baseUrl = 'https://www.ubereats.com' }) {
-  await page.goto(baseUrl + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  if (!onSignInPage(page.url())) {
+    await page.goto(baseUrl + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  }
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
     if ((await probeAuth(page, csrfToken, 2)) === SessionState.AUTHENTICATED) return true;
