@@ -1,0 +1,8 @@
+.private/
+browser-profile/
+logs/
+trail.md
+fixtures/
+node_modules/
+dist/
+*.log

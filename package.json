@@ -1,0 +1,26 @@
+{
+  "name": "uber-eats-mcp",
+  "version": "1.0.0",
+  "description": "Personal read-only Uber Eats MCP: browse feed/restaurants/menus/deals from your own logged-in session, find best 2-for-1 and price-for-value",
+  "type": "module",
+  "scripts": {
+    "login": "node src/spike.mjs login",
+    "explore": "node src/spike.mjs explore",
+    "spike": "node src/spike.mjs run",
+    "serve": "tsx src/server.ts",
+    "test:tools": "UE_MOCK=1 UE_FIXTURES_DIR=.private/fixtures/api UE_CACHE_DIR=.private/fixtures/cache node src/test-tools.mjs",
+    "test:mcp": "UE_MOCK=1 UE_FIXTURES_DIR=.private/fixtures/api UE_CACHE_DIR=.private/fixtures/cache node src/test-mcp.mjs",
+    "sessiond": "node src/sessiond.mjs",
+    "live-run": "node src/live-run.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "playwright": "^1.65.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  }
+}
