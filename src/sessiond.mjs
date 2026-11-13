@@ -66,30 +66,36 @@ async function saveAll() {
 
 const ensureAuth = (budgetMs) => waitForAuth(page, { budgetMs, baseUrl: BASE });
 
-if (HEADLESS_MODE) {
-  console.log('[sessiond] starting HEADLESS — trying silent SSO re-auth (no window, no password)...');
-  await launch(true);
-  if (await ensureAuth(90 * 1000)) {
-    console.log('[sessiond] silent SSO worked — fully headless, no window ever shown');
-  } else {
+// Re-auth ladder: silent SSO while headless, then one headed window for a manual sign-in.
+async function authenticate() {
+  if (!headed) {
+    console.log('[sessiond] trying silent SSO re-auth (no window, no password)...');
+    if (await ensureAuth(90 * 1000)) {
+      console.log('[sessiond] silent SSO worked — fully headless, no window ever shown');
+      return true;
+    }
     console.log('[sessiond] silent SSO did not fire — falling back to a headed window for one manual sign-in');
     await ctx.close().catch(() => {});
     await launch(false);
-    await ensureAuth(10 * 60 * 1000);
+  } else {
+    console.log('[sessiond] sign in inside the window once, I will detect it.');
   }
-} else {
-  console.log('[sessiond] starting HEADED — sign in inside the window once, I will detect it.');
-  await launch(false);
-  await ensureAuth(10 * 60 * 1000);
+  return ensureAuth(10 * 60 * 1000);
 }
+
+console.log(`[sessiond] starting ${HEADLESS_MODE ? 'HEADLESS' : 'HEADED'}`);
+await launch(HEADLESS_MODE);
+await authenticate();
 
 await saveAll();
 console.log(`[sessiond] READY (${headed ? 'headed, minimized' : 'headless'}) — CDP on http://localhost:${CDP_PORT} — attach with UE_CDP=http://localhost:${CDP_PORT}`);
 minimizeWindow();
 
 // keepalive: reload the feed periodically so the app refreshes its tokens;
-// re-check auth and re-run SSO if it ever lapses
+// re-check auth and re-run the re-auth ladder if it ever lapses
+let recovering = false;
 setInterval(async () => {
+  if (recovering) return;
   try {
     // if a client attached and navigated the page elsewhere, leave it alone —
     // navigating now would cancel their in-flight goto (ERR_ABORTED)
@@ -97,16 +103,16 @@ setInterval(async () => {
     await page.goto(BASE + '/feed', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
     const s = await probeAuth(page, 'x', 2);
     if (s !== SessionState.AUTHENTICATED) {
-      console.log('[sessiond] session lapsed — attempting silent SSO re-auth...');
-      if (await ensureAuth(headed ? 10 * 60 * 1000 : 90 * 1000)) {
+      console.log('[sessiond] session lapsed — re-authenticating...');
+      recovering = true;
+      if (await authenticate()) {
         await saveAll();
         console.log('[sessiond] re-authed and re-saved');
         minimizeWindow();
-      } else if (!headed) {
-        console.log('[sessiond] headless SSO failed — restart with UE_HEADLESS=0 for a manual sign-in window');
       }
     }
   } catch (e) { console.log('[sessiond] keepalive error:', e.message); }
+  finally { recovering = false; }
 }, 60 * 1000);
 
 await new Promise(() => {}); // run forever
