@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { FileCache } from './cache.mjs';
 import { PoliteSession } from './polite.mjs';
-import { probeAuth, SessionState } from './session.mjs';
+import { probeAuth, SessionState, waitForAuth } from './session.mjs';
+import { ensureDaemon } from './daemon.mjs';
 
 export class SessionExpiredError extends Error {
   constructor(msg) { super(msg); this.name = 'SessionExpiredError'; }
@@ -16,12 +17,14 @@ const BASE = 'https://www.ubereats.com';
 // (cookies ride along), with a TTL cache and politeness guardrails.
 // UE_MOCK=1 replays captured fixtures instead of hitting the network.
 export class Backend {
-  constructor({ root, mock = false, apiBudget = 150, hardBudget = 5000, headed = false, ssoWaitSecs = 0, cdp = null, maxNavigations = 5 } = {}) {
+  constructor({ root, mock = false, apiBudget = 150, hardBudget = 5000, headed = false, ssoWaitSecs = 0, cdp = null, maxNavigations = 5, autoStart = true, reauthWaitSecs = 90 } = {}) {
     this.root = root;
     this.mock = mock;
     this.headed = headed;
     this.ssoWaitSecs = ssoWaitSecs;
     this.cdp = cdp; // e.g. http://localhost:9333 — attach to the sessiond daemon
+    this.autoStart = autoStart; // spawn sessiond when nothing answers on the CDP port
+    this.reauthWaitSecs = reauthWaitSecs; // how long a call waits for the daemon's session to recover
     this.browser = null;
     this.profileDir = path.join(root, 'browser-profile');
     // captured API fixtures + cache live outside the repo (session-derived data)
@@ -41,26 +44,30 @@ export class Backend {
     this.csrfToken = 'x'; // the web app itself sends x-csrf-token: x; we capture the live one when seen
   }
 
+  // Attach to the long-lived sessiond browser — no fresh launch, no sign-in.
+  async attachDaemon() {
+    if (this.autoStart) await ensureDaemon({ root: this.root, cdp: this.cdp, log: (m) => this.polite.log(m) });
+    this.browser = await chromium.connectOverCDP(this.cdp);
+    this.browser.once('disconnected', () => this.resetConnection());
+    this.ctx = this.browser.contexts()[0] || (await this.browser.newContext());
+    this.page = this.ctx.pages().find((pg) => pg.url().includes('ubereats.com')) || (await this.ctx.newPage());
+    if (!this.page.url().includes('ubereats.com')) {
+      await this.page.goto(BASE + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    }
+    await this.attachPageHandlers();
+  }
+
+  resetConnection() {
+    this.browser = null;
+    this.ctx = null;
+    this.page = null;
+    this.authed = false;
+  }
+
   async ensurePage() {
     if (this.mock) return;
+    if (!this.ctx && this.cdp) await this.attachDaemon();
     if (!this.ctx) {
-      if (this.cdp) {
-        // attach to the long-lived sessiond browser — no fresh launch, no sign-in
-        this.browser = await chromium.connectOverCDP(this.cdp);
-        this.ctx = this.browser.contexts()[0] || (await this.browser.newContext());
-        let p = this.ctx.pages().find((pg) => pg.url().includes('ubereats.com'));
-        this.page = p || (await this.ctx.newPage());
-        if (!this.page.url().includes('ubereats.com')) {
-          await this.page.goto(BASE + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 });
-        }
-        await this.attachPageHandlers();
-        const auth = await probeAuth(this.page, this.csrfToken, 3);
-        if (auth !== SessionState.AUTHENTICATED) {
-          throw new SessionExpiredError('sessiond session not authenticated — restart: node src/sessiond.mjs');
-        }
-        this.authed = true;
-        return;
-      }
       const storageStatePath = path.join(this.root, 'fixtures', 'storageState.json');
       const opts = {
         headless: !this.headed,
@@ -90,6 +97,15 @@ export class Backend {
     }
     if (this.authed) return; // probe once per session; re-probe only after a 401
     let auth = await probeAuth(this.page, this.csrfToken, 3);
+    if (auth !== SessionState.AUTHENTICATED && this.cdp) {
+      const recovered = await waitForAuth(this.page, { budgetMs: this.reauthWaitSecs * 1000, csrfToken: this.csrfToken });
+      if (!recovered) {
+        throw new SessionExpiredError(
+          `Uber Eats session lapsed and silent re-login failed within ${this.reauthWaitSecs}s. sessiond opens a sign-in window when it can — complete it and retry; if no window appears, restart it: npm run sessiond`,
+        );
+      }
+      auth = SessionState.AUTHENTICATED;
+    }
     // if anonymous, give SSO silent re-auth a chance (works headed without any input)
     if (auth !== SessionState.AUTHENTICATED && this.ssoWaitSecs > 0) {
       const deadline = Date.now() + this.ssoWaitSecs * 1000;

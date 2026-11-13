@@ -10,6 +10,8 @@ import { spree } from './spree.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // UE_HEADED=1 launches a headed browser on startup (SSO re-auths silently, no
 // password needed); UE_SSO_WAIT=<secs> waits that long for the auth probe.
+// With UE_CDP set, UE_AUTOSTART=0 stops the server from spawning sessiond when it is down;
+// UE_REAUTH_WAIT=<secs> is how long a call waits for a lapsed session to recover.
 const be = new Backend({
   root,
   mock: process.env.UE_MOCK === '1',
@@ -18,6 +20,8 @@ const be = new Backend({
   headed: process.env.UE_HEADED === '1',
   ssoWaitSecs: parseInt(process.env.UE_SSO_WAIT || '0', 10),
   cdp: process.env.UE_CDP || null, // attach to sessiond daemon, e.g. UE_CDP=http://localhost:9333
+  autoStart: process.env.UE_AUTOSTART !== '0',
+  reauthWaitSecs: parseInt(process.env.UE_REAUTH_WAIT || '90', 10),
 });
 
 const server = new McpServer({ name: 'uber-eats-mcp', version: '0.1.0' });
