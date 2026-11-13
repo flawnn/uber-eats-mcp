@@ -10,6 +10,7 @@
     "serve": "tsx src/server.ts",
     "test:tools": "UE_MOCK=1 UE_FIXTURES_DIR=.private/fixtures/api UE_CACHE_DIR=.private/fixtures/cache node src/test-tools.mjs",
     "test:mcp": "UE_MOCK=1 UE_FIXTURES_DIR=.private/fixtures/api UE_CACHE_DIR=.private/fixtures/cache node src/test-mcp.mjs",
+    "test:reauth": "node --test src/test-session.mjs",
     "sessiond": "node src/sessiond.mjs",
     "live-run": "node src/live-run.mjs"
   },

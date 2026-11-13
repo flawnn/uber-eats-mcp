@@ -37,6 +37,18 @@ export async function probeAuth(page, csrfToken = 'x', attempts = 3) {
   return last;
 }
 
+// Loads /feed once, then polls until the page is authenticated or the budget runs out.
+// Gives the browser's own silent SSO a chance to re-attach the eater session.
+export async function waitForAuth(page, { budgetMs, csrfToken = 'x', pollMs = 5000, baseUrl = 'https://www.ubereats.com' }) {
+  await page.goto(baseUrl + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    if ((await probeAuth(page, csrfToken, 2)) === SessionState.AUTHENTICATED) return true;
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  return false;
+}
+
 // Passive watcher: flips state on API 401s and on getOrderEntitiesV1 responses.
 export function watchAuth(page, state) {
   page.on('response', async (res) => {

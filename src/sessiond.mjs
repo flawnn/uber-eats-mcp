@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { probeAuth, SessionState } from './lib/session.mjs';
+import { probeAuth, SessionState, waitForAuth } from './lib/session.mjs';
 
 fs.mkdirSync(path.join(process.cwd(), 'fixtures'), { recursive: true });
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -64,16 +64,7 @@ async function saveAll() {
   console.log(`[sessiond] saved session artifacts (${allCookies.length} cookies)`);
 }
 
-async function ensureAuth(budgetMs) {
-  await page.goto(BASE + '/feed', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
-  const deadline = Date.now() + budgetMs;
-  while (Date.now() < deadline) {
-    const s = await probeAuth(page, 'x', 2);
-    if (s === SessionState.AUTHENTICATED) return true;
-    await new Promise((r) => setTimeout(r, 5000));
-  }
-  return false;
-}
+const ensureAuth = (budgetMs) => waitForAuth(page, { budgetMs, baseUrl: BASE });
 
 if (HEADLESS_MODE) {
   console.log('[sessiond] starting HEADLESS — trying silent SSO re-auth (no window, no password)...');
