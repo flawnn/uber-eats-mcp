@@ -3,6 +3,8 @@
 //  - structured: itemPromotion.buyXGetYItemPromotion on a menu item (best signal)
 //  - textual: store-level promotion text ("2 for 1", "Buy 1, get 1", ...)
 
+import { dishQualityAdjustment } from './dish-rating.mjs';
+
 export const BUY_GET_RE = /buy\s*(\d+)\s*,?\s*get\s*(\d+)/i;
 export const BOGO_TEXT_RE = /(2\s*for\s*1|bogo|2\s*x\s*1|2\s*pour\s*1|deux\s+pour\s+le\s+prix\s+d|buy\s*\d+\s*,?\s*get\s*\d+)/i;
 export const PERCENT_RE = /(\d{1,3})\s?%\s*off|(-\d{1,3}\s?%)/i;
@@ -72,6 +74,8 @@ export function collectStoreDeals(storeDetail, listItem, menu) {
           price: it.price,
           effectivePrice: it.effectivePrice,
           discountPct: discountPctOf({ kind: 'bogo', buy: it.bogo.buy, get: it.bogo.get }),
+          likePct: it.likePct ?? null,
+          ratings: it.ratings ?? null,
           section: sec.title,
           desc: it.desc ?? null,
           img: it.img ?? null,
@@ -107,18 +111,23 @@ export function mealiness(item) {
 }
 
 // Transparent value score: rating matters, deals add a lot, meal-worthiness adds
-// up to 60, price and fee subtract.
-export function valueScore({ rating, fee, effectivePrice, discountPct, meal = 0 }) {
+// up to 60, price and fee subtract; the dish's own rating (when known) nudges it
+// up to +5 or down to -15.
+export function valueScore({ rating, fee, effectivePrice, discountPct, meal = 0, likePct = null, ratings = null }) {
   const base = (rating || 4.0) * 20; // 0..100
   const mealBonus = meal * 60;
   const pricePenalty = Math.min(effectivePrice ?? 0, 40) * 1.2;
   const feePenalty = (fee ?? 0) * 2;
-  return Math.round(base + (discountPct || 0) + mealBonus - pricePenalty - feePenalty);
+  const dishAdjustment = dishQualityAdjustment({ likePct, ratings });
+  return Math.round(base + (discountPct || 0) + mealBonus - pricePenalty - feePenalty + dishAdjustment);
 }
 
 export function rankDeals(deals, { limit = 10 } = {}) {
   return deals
-    .map((d) => ({ ...d, valueScore: valueScore({ rating: d.rating, fee: d.fee, effectivePrice: d.effectivePrice ?? d.price, discountPct: d.discountPct }) }))
+    .map((d) => ({
+      ...d,
+      valueScore: valueScore({ rating: d.rating, fee: d.fee, effectivePrice: d.effectivePrice ?? d.price, discountPct: d.discountPct, likePct: d.likePct, ratings: d.ratings }),
+    }))
     .sort((a, b) => b.valueScore - a.valueScore || (b.discountPct || 0) - (a.discountPct || 0))
     .slice(0, limit);
 }

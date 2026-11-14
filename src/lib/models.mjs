@@ -2,6 +2,8 @@
 // Prices arrive in cents; we emit euros as numbers. Long uuids are shortened
 // for display (full uuid is kept alongside when needed for follow-up calls).
 
+import { parseDishRating } from './dish-rating.mjs';
+
 export const shortId = (u) => (u || '').replace(/-/g, '').slice(0, 8);
 export const eur = (cents) => (cents == null ? null : Math.round(cents) / 100);
 
@@ -76,6 +78,7 @@ export function normItem(ci) {
     bogo && bogo.getQuantity > 0
       ? Math.round((price * bogo.buyQuantity) / (bogo.buyQuantity + bogo.getQuantity) * 100) / 100
       : price;
+  const dish = parseDishRating(ci);
   return clean({
     id: shortId(ci.uuid),
     name: ci.title ?? null,

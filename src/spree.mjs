@@ -99,6 +99,8 @@ export async function spree(be, cuisine, { pages = 4, limit = 30, excludeRe = PO
           rating: st.detail.rating ?? st.list.rating ?? null,
           ratingPct: ratingPct == null ? null : Math.round(ratingPct),
           lowRating,
+          likePct: it.likePct ?? null,
+          ratings: it.ratings ?? null,
           feeBadge: st.list.fee ?? null,
           eta: st.detail.eta ?? st.list.eta ?? null,
           valueScore: valueScore({
@@ -107,6 +109,8 @@ export async function spree(be, cuisine, { pages = 4, limit = 30, excludeRe = PO
             effectivePrice: it.effectivePrice ?? it.price,
             discountPct,
             meal,
+            likePct: it.likePct,
+            ratings: it.ratings,
           }) - (lowRating ? 15 : 0),
         };
         items.push(rec);

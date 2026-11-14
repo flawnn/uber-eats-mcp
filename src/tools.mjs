@@ -143,11 +143,15 @@ export async function bestValue(be, { limit = 10, cuisine = null, maxPrice = nul
             rating: detail.rating ?? s.rating ?? null,
             fee: detail.fee ?? s.fee ?? null,
             eta: detail.eta ?? s.eta ?? null,
+            likePct: it.likePct ?? null,
+            ratings: it.ratings ?? null,
             valueScore: valueScore({
               rating: detail.rating ?? s.rating,
               fee: detail.fee ?? s.fee,
               effectivePrice: it.effectivePrice ?? it.price,
               discountPct: it.bogo ? Math.round((it.bogo.get / (it.bogo.buy + it.bogo.get)) * 100) : 0,
+              likePct: it.likePct,
+              ratings: it.ratings,
             }),
           });
         }
