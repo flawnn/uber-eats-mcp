@@ -61,7 +61,10 @@ export function normStoreDetail(d) {
     address: d.location
       ? [d.location.streetAddress, d.location.city, d.location.postalCode].filter(Boolean).join(', ')
       : null,
-    open: d.isOpen,
+    open: d.isOpen && !d.closedMessage,
+    closedNote: d.closedMessage,
+    opensAt: d.orderForLaterInfo?.nextOpenTime,
+    schedulable: d.scheduledOrderInfo?.isSchedulable,
     orderable: d.isOrderable,
     distance: d.distanceBadge?.text ?? null,
     hasPromo: !!d.hasStorePromotion,
@@ -87,6 +90,9 @@ export function normItem(ci) {
     soldOut: ci.isSoldOut ? true : null,
     customizable: ci.hasCustomizations ? true : null,
     bogo: bogo ? { buy: bogo.buyQuantity, get: bogo.getQuantity, max: bogo.maxRedemptionCount ?? null } : null,
+    likePct: dish?.likePct,
+    ratings: dish?.ratings,
+    mostLikedRank: dish?.rank,
     desc: (ci.itemDescription || '').split('\n')[0]?.slice(0, 140) || null,
     img: ci.imageUrl || null,
   });

@@ -26,6 +26,12 @@ The MCP server starts the daemon itself when nothing answers on `:9333` (`UE_AUT
 
 Tests run offline against captured fixtures: `npm run test:tools && npm run test:mcp`.
 
+## Dish ratings and availability
+
+Menu items from `get_menu`/`best_value`/`cuisine_spree`/`find_deals` carry the dish's own rating when Uber shows one: `likePct` (share of customers who liked it), `ratings` (count; absent for "most liked" badges that only expose a percentage) and `mostLikedRank`. Value scores shrink `likePct` toward 80% by count (prior weight 10) and apply −15…+5.
+
+`get_store` reports `open` as false while a `closedNote` ("Opens at 11:00 AM") is set, plus `opensAt` (UTC ISO) and `schedulable`. Offline checks: `npm run test:dish`.
+
 ## TODO
 
 - [ ] richer per-item verdicts (image-based portion-size guesses)
